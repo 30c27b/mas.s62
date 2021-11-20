@@ -21,6 +21,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -55,13 +56,13 @@ func main() {
 	// done
 	fmt.Printf("Verify worked? %v\n", worked)
 
-	// Forge signature
-	msgString, sig, err := Forge()
-	if err != nil {
-		panic(err)
-	}
+	//// Forge signature
+	//msgString, sig, err := Forge()
+	//if err != nil {
+	//	panic(err)
+	//}
 
-	fmt.Printf("forged msg: %s sig: %s\n", msgString, sig.ToHex())
+	//fmt.Printf("forged msg: %s sig: %s\n", msgString, sig.ToHex())
 
 	return
 }
@@ -109,8 +110,7 @@ func HexToPubkey(s string) (PublicKey, error) {
 
 	// first, make sure hex string is of correct length
 	if len(s) != expectedLength {
-		return p, fmt.Errorf(
-			"Pubkey string %d characters, expect %d", expectedLength)
+		return p, fmt.Errorf("Pubkey string %d characters, expect %d", len(s), expectedLength)
 	}
 
 	// decode from hex to a byte slice
@@ -188,7 +188,7 @@ func HexToSignature(s string) (Signature, error) {
 	// first, make sure hex string is of correct length
 	if len(s) != expectedLength {
 		return sig, fmt.Errorf(
-			"Pubkey string %d characters, expect %d", expectedLength)
+			"Pubkey string %d characters, expect %d", len(s), expectedLength)
 	}
 
 	// decode from hex to a byte slice
@@ -223,6 +223,26 @@ func GenerateKey() (SecretKey, PublicKey, error) {
 	// Your code here
 	// ===
 
+	for idx := 0; idx < 256; idx++ {
+
+		_, err := rand.Read(sec.ZeroPre[idx][:])
+		if err != nil {
+			return sec, pub, err
+		}
+
+		h := sha256.Sum256(sec.ZeroPre[idx][:])
+		copy(pub.ZeroHash[idx][:], h[:])
+
+		_, err = rand.Read(sec.OnePre[idx][:])
+		if err != nil {
+			return sec, pub, err
+		}
+
+		h = sha256.Sum256(sec.OnePre[idx][:])
+		copy(pub.OneHash[idx][:], h[:])
+
+	}
+
 	// ===
 	return sec, pub, nil
 }
@@ -234,6 +254,23 @@ func Sign(msg Message, sec SecretKey) Signature {
 	// Your code here
 	// ===
 
+	h := sha256.Sum256(msg[:])
+
+	for i, b := range h {
+
+		for j := 0; j < 8; j++ {
+
+			bit := b & byte(j*2)
+			if bit == 0 {
+				sig.Preimage[i*8+j] = sec.ZeroPre[i*8+j]
+			} else {
+				sig.Preimage[i*8+j] = sec.OnePre[i*8+j]
+			}
+
+		}
+
+	}
+
 	// ===
 	return sig
 }
@@ -244,6 +281,29 @@ func Verify(msg Message, pub PublicKey, sig Signature) bool {
 
 	// Your code here
 	// ===
+
+	h := sha256.Sum256(msg[:])
+
+	for i, b := range h {
+
+		for j := 0; j < 8; j++ {
+
+			bit := b & byte(j*2)
+			var bh Block
+			bh = sha256.Sum256(sig.Preimage[i*8+j][:])
+			if bit == 0 {
+				if bh != pub.ZeroHash[i*8+j] {
+					return false
+				}
+			} else {
+				if bh != pub.OneHash[i*8+j] {
+					return false
+				}
+			}
+
+		}
+
+	}
 
 	// ===
 
