@@ -56,6 +56,18 @@ func main() {
 	// done
 	fmt.Printf("Verify worked? %v\n", worked)
 
+	//pubx, errx := HexToPubkey(hexPubkey1)
+	//if errx != nil {
+	//	panic(errx)
+	//}
+
+	//sigx, errx := HexToSignature(hexSignature1)
+	//if errx != nil {
+	//	panic(errx)
+	//}
+
+	//Verify()
+
 	//// Forge signature
 	//msgString, sig, err := Forge()
 	//if err != nil {
@@ -231,7 +243,9 @@ func GenerateKey() (SecretKey, PublicKey, error) {
 		}
 
 		h := sha256.Sum256(sec.ZeroPre[idx][:])
-		copy(pub.ZeroHash[idx][:], h[:])
+		for j := range h {
+			pub.ZeroHash[idx][j] = h[j]
+		}
 
 		_, err = rand.Read(sec.OnePre[idx][:])
 		if err != nil {
@@ -239,7 +253,9 @@ func GenerateKey() (SecretKey, PublicKey, error) {
 		}
 
 		h = sha256.Sum256(sec.OnePre[idx][:])
-		copy(pub.OneHash[idx][:], h[:])
+		for j := range h {
+			pub.OneHash[idx][j] = h[j]
+		}
 
 	}
 
@@ -254,17 +270,17 @@ func Sign(msg Message, sec SecretKey) Signature {
 	// Your code here
 	// ===
 
-	h := sha256.Sum256(msg[:])
+	indices := [8]int{128, 64, 32, 16, 8, 4, 2, 1}
 
-	for i, b := range h {
+	for i := range msg {
 
 		for j := 0; j < 8; j++ {
 
-			bit := b & byte(j*2)
+			bit := msg[i] & byte(indices[j])
 			if bit == 0 {
-				sig.Preimage[i*8+j] = sec.ZeroPre[i*8+j]
+				sig.Preimage[(i*8)+j] = sec.ZeroPre[(i*8)+j]
 			} else {
-				sig.Preimage[i*8+j] = sec.OnePre[i*8+j]
+				sig.Preimage[(i*8)+j] = sec.OnePre[(i*8)+j]
 			}
 
 		}
@@ -282,21 +298,20 @@ func Verify(msg Message, pub PublicKey, sig Signature) bool {
 	// Your code here
 	// ===
 
-	h := sha256.Sum256(msg[:])
+	indices := [8]int{128, 64, 32, 16, 8, 4, 2, 1}
 
-	for i, b := range h {
+	for i := range msg {
 
 		for j := 0; j < 8; j++ {
 
-			bit := b & byte(j*2)
-			var bh Block
-			bh = sha256.Sum256(sig.Preimage[i*8+j][:])
+			bit := msg[i] & byte(indices[j])
+			bh := sha256.Sum256(sig.Preimage[(i*8)+j][:])
 			if bit == 0 {
-				if bh != pub.ZeroHash[i*8+j] {
+				if bh != pub.ZeroHash[(i*8)+j] {
 					return false
 				}
 			} else {
-				if bh != pub.OneHash[i*8+j] {
+				if bh != pub.OneHash[(i*8)+j] {
 					return false
 				}
 			}
